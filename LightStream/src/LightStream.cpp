@@ -3,50 +3,55 @@
 
 #include "Walnut/Image.h"
 #include "Walnut/Random.h"
+#include "Walnut/Timer.h"
+
+#include "Renderer.h"
 
 using namespace Walnut;
 
-class ExampleLayer : public Layer
+class MainLayer : public Layer
 {
 public:
-	virtual void OnUIRender() override {
-		ImGui::Begin("Scene");
-		if (ImGui::Button("Render"))
-			Render();
-		ImGui::End();
+	MainLayer() : camera() {}
 
+	virtual void OnUIRender() override {
 		ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
 		ImGui::Begin("Viewport");
 		
 		viewportWidth = ImGui::GetContentRegionAvail().x;
 		viewportHeight = ImGui::GetContentRegionAvail().y;
 
+		std::shared_ptr<Image> img = renderer.GetFinalImage();
 		if (img)
 			ImGui::Image(img->GetDescriptorSet(), { (float)img->GetWidth(), (float)img->GetHeight() });
 
 		ImGui::End();
 		ImGui::PopStyleVar();
+
+
+		ImGui::Begin("Scene");
+		ImGui::Text("Render Time: %0.2fms", renderTime);
+		if (ImGui::Button("Render"))
+			Render();
+		ImGui::End();
 	}
 
 	void Render() {
-		if (!img || viewportWidth != img->GetWidth() || viewportHeight != img->GetHeight()) {
-			img = std::make_shared<Image>(viewportWidth, viewportHeight, ImageFormat::RGBA);
-			delete[] imageData;
-			imageData = new uint32_t[viewportWidth * viewportHeight];
-		}
+		Timer timer;
 
-		for (uint32_t i = 0; i < viewportWidth * viewportHeight; i++) {
-			imageData[i] = Random::UInt();
-			imageData[i] |= 0xffff00ff;
-		}
+		renderer.OnResize(viewportWidth, viewportHeight);
+		camera.OnResize(viewportWidth, viewportHeight);
 
-		img->SetData(imageData);
+		renderer.Render(camera);
+		renderTime = timer.ElapsedMillis();
 	}
 private:
-	std::shared_ptr<Image> img;
-	uint32_t* imageData = nullptr;
-
 	uint32_t viewportWidth = 0, viewportHeight = 0;
+
+	Camera camera;
+	Renderer renderer;
+
+	float renderTime = 0.0f;
 };
 
 Application* Walnut::CreateApplication(int argc, char** argv)
@@ -55,6 +60,6 @@ Application* Walnut::CreateApplication(int argc, char** argv)
 	spec.Name = "LightStream";
 
 	Application* app = new Application(spec);
-	app->PushLayer<ExampleLayer>();
+	app->PushLayer<MainLayer>();
 	return app;
 }
